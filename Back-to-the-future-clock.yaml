@@ -62,8 +62,9 @@ globals:
       restore_value: no
       initial_value: '0'
 
-
-
+#######################################################
+# Start of test, this has not yet been tested
+#######################################################
 binary_sensor:
   - platform: gpio
     pin:
@@ -88,7 +89,9 @@ binary_sensor:
                 id(color_mode).publish_state(false);
             id(button_press_counter) == 0;
             }
-
+#######################################################
+# End of test
+#######################################################
 
 display:
   - platform: tm1637

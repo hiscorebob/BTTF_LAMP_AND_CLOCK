@@ -1,0 +1,303 @@
+esphome:
+  name: "back-to-the-future-clock"
+  friendly_name: "back-to-the-future-clock"
+  on_boot:
+    priority: 600
+    then:
+      - light.turn_on:
+          id: light_segment_1
+          brightness: !lambda |-
+                          return id(brightness).state /100;
+          red: 100%
+          green: 42%
+          blue: 4%
+      - light.turn_on:
+          id: light_segment_2
+          brightness: !lambda |-
+                          return id(brightness).state /100;
+          red: 100%
+          green: 100%
+          blue: 0%
+      - light.turn_on:
+          id: light_segment_3
+          brightness: !lambda |-
+                          return id(brightness).state /100;
+          red: 100%
+          green: 42%
+          blue: 4%
+        
+  
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+  
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: !secret encryptionkey
+
+ota:
+  password: !secret ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "BTTF Fallback Hotspot"
+    password: !secret fallback
+
+captive_portal:
+
+web_server:
+
+globals:
+    - id: button_press_counter
+      type: int
+      restore_value: no
+      initial_value: '0'
+
+
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO05
+      mode:
+        input: true
+        pullup: true
+    name: button
+    on_press:
+      then:
+        - lambda: |-
+            // 0 = Default BTTF Mode , 1 = Cyberpunk Mode , 2 = LED Lights Off
+            if (id(button_press_counter) == 0) {
+            id(color_mode).publish_state(true);
+            id(button_press_counter) += 1;
+            }
+            if (id(button_press_counter) == 1) {
+            id(bttf_light).turn_off().perform();
+            id(button_press_counter) += 1;
+            }
+            if (id(button_press_counter) == 2) {
+                id(color_mode).publish_state(false);
+            id(button_press_counter) == 0;
+            }
+
+
+display:
+  - platform: tm1637
+    id: time_display
+    intensity: 2
+    clk_pin: GPIO14
+    dio_pin: GPIO26
+    update_interval: 500ms
+    #inverted: true
+    lambda: |-
+        static int i = 0;
+        i++;
+        if ((i % 2) == 0)
+        // %I = 0-12 , %H = 0-24
+        it.strftime("%H.%M", id(clock_time).now());
+        else
+        it.strftime("%H%M", id(clock_time).now());
+
+  - platform: tm1637
+    id: date_display
+    intensity: 2
+    clk_pin: GPIO14
+    dio_pin: GPIO25
+    #update_interval: 500ms
+    #inverted: true
+    lambda: |-
+        it.strftime("%d.%m", id(clock_time).now());
+
+  - platform: tm1637
+    id: year_display
+    intensity: 2
+    clk_pin: GPIO14
+    dio_pin: GPIO27
+    #update_interval: 500ms
+    #inverted: true
+    lambda: |-
+        it.strftime("%Y", id(clock_time).now());
+
+light:
+  - platform: monochromatic
+    name: "AM"
+    id: "AM_LED"
+    internal: true
+    output: light_output_am
+
+  - platform: monochromatic
+    name: "PM"
+    id: "PM_LED"
+    internal: true
+    output: light_output_pm
+
+  - platform: neopixelbus
+    type: GRB
+    variant: WS2812
+    pin: GPIO13
+    num_leds: 36
+    internal: true
+    name: "BTTF Light"
+    id: "bttf_light"
+
+  - platform: partition
+    name: "Light Segment  1"
+    id: "light_segment_1"
+    internal: false
+    segments:
+      - id: bttf_light
+        from: 0
+        to: 11
+
+  - platform: partition
+    name: "Light Segment 2"
+    id: "light_segment_2"
+    internal: false
+    segments:
+      - id: bttf_light
+        from: 12
+        to: 23
+  - platform: partition
+    name: "Light Segment 3"
+    id: "light_segment_3"
+    internal: false
+    segments:
+      - id: bttf_light
+        from: 24
+        to: 35
+
+number:
+  - platform: template
+    name: Brightness
+    id: brightness
+    min_value: 10
+    max_value: 90
+    initial_value: 66
+    step: 5
+    optimistic: true
+    on_value:
+      then:
+        - light.turn_on:
+            id: light_segment_1
+            brightness: !lambda "return x/100;"
+        - light.turn_on:
+            id: light_segment_2
+            brightness: !lambda "return x/100;"
+        - light.turn_on:
+            id: light_segment_3
+            brightness: !lambda "return x/100;"
+
+
+output:
+  - id: light_output_am
+    platform: ledc
+    pin: GPIO32
+
+  - id: light_output_pm
+    platform: ledc
+    pin: GPIO33
+    
+time:
+  - platform: sntp
+    id: clock_time
+    servers: 192.168.0.65
+    on_time_sync:
+      then:
+        - lambda: |-
+            if (id(clock_time).now().hour >= 12)
+            {
+            //turn on PM LED
+            id(PM_LED).turn_on().perform();
+            id(AM_LED).turn_off().perform();
+            }
+            else
+            {
+            //turn on AM LED
+            id(PM_LED).turn_off().perform();
+            id(AM_LED).turn_on().perform();
+            }
+
+
+    on_time:
+      # Every hour
+      - seconds: 0
+        minutes: 0
+        hours: /1
+        then:
+          - lambda: |-
+                if (id(clock_time).now().hour >= 12)
+                {
+                //turn on PM LED
+                id(PM_LED).turn_on().perform();
+                id(AM_LED).turn_off().perform();
+                }
+                else
+                {
+                //turn on AM LED
+                id(PM_LED).turn_off().perform();
+                id(AM_LED).turn_on().perform();
+                }
+
+
+switch:
+  - platform: template
+    id: color_mode
+    icon: "mdi:toggle-switch"
+    internal: false
+    restore_mode: ALWAYS_OFF
+    name: "CyberPunk Modus"
+    optimistic: true
+    on_turn_on:
+      - light.turn_on:
+          id: light_segment_1
+          brightness: !lambda |-
+                    return id(brightness).state /100;
+          red: 84%
+          green: 0%
+          blue: 100%
+      - light.turn_on:
+          id: light_segment_2
+          brightness: !lambda |-
+                    return id(brightness).state /100;
+          red: 0%
+          green: 72%
+          blue: 100%
+      - light.turn_on:
+          id: light_segment_3
+          brightness: !lambda |-
+                    return id(brightness).state /100;
+          red: 84%
+          green: 0%
+          blue: 100%
+    
+    on_turn_off:
+      - light.turn_on:
+          id: light_segment_1
+          brightness: !lambda |-
+                    return id(brightness).state /100;
+          red: 100%
+          green: 42%
+          blue: 4%
+      - light.turn_on:
+          id: light_segment_2
+          brightness: !lambda |-
+                    return id(brightness).state /100;
+          red: 100%
+          green: 100%
+          blue: 0%
+      - light.turn_on:
+          id: light_segment_3
+          brightness: !lambda |-
+                    return id(brightness).state /100;
+          red: 100%
+          green: 42%
+          blue: 4%

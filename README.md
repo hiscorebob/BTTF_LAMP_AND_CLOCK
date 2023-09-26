@@ -1,3 +1,4 @@
 # Back to the Future Clock
 
-This is a port of jejelinges code to Esphome for the back to the Future Clock
+This is a port of jejelinges code to Esphome for the Back to the Future Clock
+See https://www.thingiverse.com/thing:6144608

@@ -90,7 +90,7 @@ binary_sensor:
                 id(button_press_counter) = 0;
                 break;
               default:
-                 id(button_press_counter) == 0;
+                id(button_press_counter) = 0;
             }
 
 

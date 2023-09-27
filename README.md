@@ -27,6 +27,7 @@ In my setup, AM/PM LED's are using a shared GND, with a resistor of 47 Ohm.
 
 It also features a WebServer where you can control certain elements (Brightness and CyberPunk Mode), and can be integrated into Home Assistant.  
 
+![Web Interface](img/bttf_web_interface.png)
 
 ![Home Assistant Intgration](img/home-assistant-integration.png)
 

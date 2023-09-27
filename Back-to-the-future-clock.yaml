@@ -4,31 +4,31 @@ esphome:
   on_boot:
     priority: 600
     then:
+      #Start with Back to the Future Light Colors and initial brightness value
       - light.turn_on:
           id: light_segment_1
           brightness: !lambda |-
-                          return id(brightness).state /100;
+            return id(brightness).state /100;
           red: 100%
           green: 42%
           blue: 4%
       - light.turn_on:
           id: light_segment_2
           brightness: !lambda |-
-                          return id(brightness).state /100;
+            return id(brightness).state /100;
           red: 100%
           green: 100%
           blue: 0%
       - light.turn_on:
           id: light_segment_3
           brightness: !lambda |-
-                          return id(brightness).state /100;
+            return id(brightness).state /100;
           red: 100%
           green: 42%
           blue: 4%
-        
-  
+      
 esp32:
-  board: esp32dev
+  board: esp32dev #Change this to your type of Micro Controller 
   framework:
     type: arduino
   
@@ -62,13 +62,11 @@ globals:
       restore_value: no
       initial_value: '0'
 
-#######################################################
-# Start of test, this has not yet been tested
-#######################################################
 binary_sensor:
   - platform: gpio
     pin:
-      number: GPIO05
+      number: GPIO21
+      inverted: true #we use pullup, need to invert for a normally open button
       mode:
         input: true
         pullup: true
@@ -77,21 +75,24 @@ binary_sensor:
       then:
         - lambda: |-
             // 0 = Default BTTF Mode , 1 = Cyberpunk Mode , 2 = LED Lights Off
-            if (id(button_press_counter) == 0) {
-            id(color_mode).publish_state(true);
-            id(button_press_counter) += 1;
-            }
-            if (id(button_press_counter) == 1) {
-            id(bttf_light).turn_off().perform();
-            id(button_press_counter) += 1;
-            }
-            if (id(button_press_counter) == 2) {
+            // Reset Counter to 0 after 2 button presses
+            switch (id(button_press_counter)) {
+              case 0:
+                id(color_mode).publish_state(true);
+                id(button_press_counter) += 1;
+                break;
+              case 1:
+                id(bttf_light).turn_off().perform();
+                id(button_press_counter) += 1;
+                break;
+              case 2:
                 id(color_mode).publish_state(false);
-            id(button_press_counter) == 0;
+                id(button_press_counter) = 0;
+                break;
+              default:
+                 id(button_press_counter) == 0;
             }
-#######################################################
-# End of test
-#######################################################
+
 
 display:
   - platform: tm1637
@@ -100,12 +101,11 @@ display:
     clk_pin: GPIO14
     dio_pin: GPIO26
     update_interval: 500ms
-    #inverted: true
     lambda: |-
         static int i = 0;
         i++;
         if ((i % 2) == 0)
-        // %I = 0-12 , %H = 0-24
+        // or use %I%M  , %I = 0-12 , %H = 0-24 , see https://esphome.io/components/time/index.html#strftime for time formatting options
         it.strftime("%H.%M", id(clock_time).now());
         else
         it.strftime("%H%M", id(clock_time).now());
@@ -115,8 +115,6 @@ display:
     intensity: 2
     clk_pin: GPIO14
     dio_pin: GPIO25
-    #update_interval: 500ms
-    #inverted: true
     lambda: |-
         it.strftime("%d.%m", id(clock_time).now());
 
@@ -125,8 +123,6 @@ display:
     intensity: 2
     clk_pin: GPIO14
     dio_pin: GPIO27
-    #update_interval: 500ms
-    #inverted: true
     lambda: |-
         it.strftime("%Y", id(clock_time).now());
 
@@ -147,11 +143,11 @@ light:
     type: GRB
     variant: WS2812
     pin: GPIO13
-    num_leds: 36
+    num_leds: 36  #Adjust to your number of RGB LED's
     internal: true
     name: "BTTF Light"
     id: "bttf_light"
-
+# Create 3 segments from Main Light, bottom, middle and top row
   - platform: partition
     name: "Light Segment  1"
     id: "light_segment_1"
@@ -184,7 +180,7 @@ number:
     id: brightness
     min_value: 10
     max_value: 90
-    initial_value: 66
+    initial_value: 66 
     step: 5
     optimistic: true
     on_value:
@@ -212,7 +208,6 @@ output:
 time:
   - platform: sntp
     id: clock_time
-    servers: 192.168.0.65
     on_time_sync:
       then:
         - lambda: |-
@@ -231,7 +226,7 @@ time:
 
 
     on_time:
-      # Every hour
+      # Check every hour if AM/PM State changes
       - seconds: 0
         minutes: 0
         hours: /1
@@ -257,8 +252,9 @@ switch:
     icon: "mdi:toggle-switch"
     internal: false
     restore_mode: ALWAYS_OFF
-    name: "CyberPunk Modus"
+    name: "CyberPunk Mode"
     optimistic: true
+    #Turn on different set of Colors when switch is turned on
     on_turn_on:
       - light.turn_on:
           id: light_segment_1
@@ -281,7 +277,7 @@ switch:
           red: 84%
           green: 0%
           blue: 100%
-    
+    #Restore Back to the Future Colors when switch is turned off
     on_turn_off:
       - light.turn_on:
           id: light_segment_1

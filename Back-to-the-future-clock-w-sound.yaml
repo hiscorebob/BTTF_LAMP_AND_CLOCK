@@ -1,0 +1,346 @@
+esphome:
+  name: "back-to-the-future-clock"
+  friendly_name: "back-to-the-future-clock"
+  on_boot:
+    priority: 600
+    then:
+      #Play Start sound
+      - dfplayer.set_volume: 20
+      - delay: 1s
+      - dfplayer.play: 1
+      #Start with Back to the Future Light Colors and initial brightness value
+      - light.turn_on:
+          id: light_segment_1
+          brightness: !lambda |-
+            return id(brightness).state /100;
+          red: 100%
+          green: 42%
+          blue: 4%
+      - light.turn_on:
+          id: light_segment_2
+          brightness: !lambda |-
+            return id(brightness).state /100;
+          red: 100%
+          green: 100%
+          blue: 0%
+      - light.turn_on:
+          id: light_segment_3
+          brightness: !lambda |-
+            return id(brightness).state /100;
+          red: 100%
+          green: 42%
+          blue: 4%
+      
+esp32:
+  board: esp32dev #Change this to your type of Micro Controller 
+  framework:
+    type: arduino
+  
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: !secret encryptionkey
+
+ota:
+  password: !secret ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "BTTF Fallback Hotspot"
+    password: !secret fallback
+
+captive_portal:
+
+web_server:
+
+
+uart:
+  tx_pin: GPIO17
+  rx_pin: GPIO16
+  baud_rate: 9600
+  id: uartsound
+
+dfplayer:
+  id: soundplayer
+  uart_id: uartsound
+  on_finished_playback:
+    then:
+      logger.log: 'Finished playing Sound'
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO21
+      inverted: true #we use pullup, need to invert for a normally open button
+      mode:
+        input: true
+        pullup: true
+    name: button
+    on_press:
+      then:
+        - number.increment: button_press_counter
+
+display:
+  - platform: tm1637
+    id: time_display
+    intensity: 2
+    clk_pin: GPIO14
+    dio_pin: GPIO26
+    update_interval: 500ms
+    lambda: |-
+        static int i = 0;
+        i++;
+        if ((i % 2) == 0)
+        // or use %I%M  , %I = 0-12 , %H = 0-24 , see https://esphome.io/components/time/index.html#strftime for time formatting options
+        it.strftime("%H.%M", id(clock_time).now());
+        else
+        it.strftime("%H%M", id(clock_time).now());
+
+  - platform: tm1637
+    id: date_display
+    intensity: 2
+    clk_pin: GPIO14
+    dio_pin: GPIO25
+    lambda: |-
+        it.strftime("%d.%m", id(clock_time).now());
+
+  - platform: tm1637
+    id: year_display
+    intensity: 2
+    clk_pin: GPIO14
+    dio_pin: GPIO27
+    lambda: |-
+        it.strftime("%Y", id(clock_time).now());
+
+light:
+  - platform: monochromatic
+    name: "AM"
+    id: "AM_LED"
+    internal: true
+    output: light_output_am
+
+  - platform: monochromatic
+    name: "PM"
+    id: "PM_LED"
+    internal: true
+    output: light_output_pm
+
+  - platform: neopixelbus
+    type: GRB
+    variant: WS2812
+    pin: GPIO13
+    num_leds: 36  #Adjust to your number of RGB LED's
+    internal: true
+    name: "BTTF Light"
+    id: "bttf_light"
+# Create 3 segments from Main Light, bottom, middle and top row
+  - platform: partition
+    name: "Light Segment  1"
+    id: "light_segment_1"
+    internal: false
+    segments:
+      - id: bttf_light
+        from: 0
+        to: 11
+
+  - platform: partition
+    name: "Light Segment 2"
+    id: "light_segment_2"
+    internal: false
+    segments:
+      - id: bttf_light
+        from: 12
+        to: 23
+  - platform: partition
+    name: "Light Segment 3"
+    id: "light_segment_3"
+    internal: false
+    segments:
+      - id: bttf_light
+        from: 24
+        to: 35
+
+number:
+  - platform: template
+    name: button_press_counter
+    id: button_press_counter
+    restore_value: no
+    min_value: 0
+    max_value: 3
+    initial_value: '0'
+    step: 1
+    optimistic: True
+    on_value:
+      # 0 = No Action, allows reset of "counter"
+      # 1 = Default BTTF Mode , 2 = Cyberpunk Mode , 3 = LED Lights Off
+      # Reset Counter to 0 after 2 button presses
+      #!lambda "return x/255;" returns the actual value of the number, must match sound clip number for dfplayer
+      then:        
+        - if:
+            condition:
+              - number.in_range: 
+                  id: button_press_counter
+                  #2
+                  above: 1
+                  below: 3
+            then:
+              - dfplayer.play: !lambda "return x/255;"
+              # Turn on Cyberpunk Mode
+              - switch.turn_on: color_mode
+        - if:
+            condition:
+              - number.in_range: 
+                  id: button_press_counter
+                  # 3
+                  above: 2
+            then:
+              - dfplayer.play: !lambda "return x/255;"
+              # Turn off Lights
+              - light.turn_off: bttf_light
+              # Set number value to 0 (can't set to 1, or lights will light up again)
+              - number.to_min: button_press_counter
+        - if:
+            condition:
+              - number.in_range: 
+                  id: button_press_counter
+                  #1
+                  above: 0
+                  below: 2
+            then:
+              #This turns on the lights with default BTTF Colors
+              - dfplayer.play: !lambda "return x/255;"
+              - switch.turn_off: color_mode
+
+
+  - platform: template
+    name: Brightness
+    id: brightness
+    min_value: 10
+    max_value: 90
+    initial_value: 66 
+    step: 5
+    optimistic: true
+    on_value:
+      then:
+        - light.turn_on:
+            id: light_segment_1
+            brightness: !lambda "return x/100;"
+        - light.turn_on:
+            id: light_segment_2
+            brightness: !lambda "return x/100;"
+        - light.turn_on:
+            id: light_segment_3
+            brightness: !lambda "return x/100;"
+
+
+output:
+  - id: light_output_am
+    platform: ledc
+    pin: GPIO32
+
+  - id: light_output_pm
+    platform: ledc
+    pin: GPIO33
+    
+time:
+  - platform: sntp
+    id: clock_time
+    on_time_sync:
+      then:
+        - lambda: |-
+            if (id(clock_time).now().hour >= 12)
+            {
+            //turn on PM LED
+            id(PM_LED).turn_on().perform();
+            id(AM_LED).turn_off().perform();
+            }
+            else
+            {
+            //turn on AM LED
+            id(PM_LED).turn_off().perform();
+            id(AM_LED).turn_on().perform();
+            }
+
+
+    on_time:
+      # Check every hour if AM/PM State changes
+      - seconds: 0
+        minutes: 0
+        hours: /1
+        then:
+          - lambda: |-
+                if (id(clock_time).now().hour >= 12)
+                {
+                //turn on PM LED
+                id(PM_LED).turn_on().perform();
+                id(AM_LED).turn_off().perform();
+                }
+                else
+                {
+                //turn on AM LED
+                id(PM_LED).turn_off().perform();
+                id(AM_LED).turn_on().perform();
+                }
+
+
+switch:
+  - platform: template
+    id: color_mode
+    icon: "mdi:toggle-switch"
+    internal: false
+    restore_mode: ALWAYS_OFF
+    name: "CyberPunk Mode"
+    optimistic: true
+    #Turn on different set of Colors when switch is turned on
+    on_turn_on:
+      - light.turn_on:
+          id: light_segment_1
+          brightness: !lambda |-
+                    return id(brightness).state /100;
+          red: 84%
+          green: 0%
+          blue: 100%
+      - light.turn_on:
+          id: light_segment_2
+          brightness: !lambda |-
+                    return id(brightness).state /100;
+          red: 0%
+          green: 72%
+          blue: 100%
+      - light.turn_on:
+          id: light_segment_3
+          brightness: !lambda |-
+                    return id(brightness).state /100;
+          red: 84%
+          green: 0%
+          blue: 100%
+    #Restore Back to the Future Colors when switch is turned off
+    on_turn_off:
+      - light.turn_on:
+          id: light_segment_1
+          brightness: !lambda |-
+                    return id(brightness).state /100;
+          red: 100%
+          green: 42%
+          blue: 4%
+      - light.turn_on:
+          id: light_segment_2
+          brightness: !lambda |-
+                    return id(brightness).state /100;
+          red: 100%
+          green: 100%
+          blue: 0%
+      - light.turn_on:
+          id: light_segment_3
+          brightness: !lambda |-
+                    return id(brightness).state /100;
+          red: 100%
+          green: 42%
+          blue: 4%

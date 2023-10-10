@@ -17,6 +17,8 @@ Pins used:
 
 Optional:   
 - GPIO21 - Button for switching between Back to the Future / CyberPunk or OFF
+- GPIO16 - Connect to DF Player TX for sound effects output (don't forget to place sound files on SD Card)
+- GPIO17 - Connect to DF Player RX for sound effects
 
 
 Adapt these to your config or likings.  
@@ -31,4 +33,6 @@ It also features a WebServer where you can control certain elements (Brightness 
 
 ![Home Assistant Intgration](img/home-assistant-integration.png)
 
+
 Many thanks to jejelinge for providing the original code and STL files for 3D Printing!
+

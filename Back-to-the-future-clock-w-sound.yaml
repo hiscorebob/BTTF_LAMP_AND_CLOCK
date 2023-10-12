@@ -7,7 +7,7 @@ esphome:
       #Play Start sound
       - dfplayer.set_volume: 20
       - delay: 1s
-      - dfplayer.play: 1
+      - dfplayer.play: 3
       #Start with Back to the Future Light Colors and initial brightness value
       - light.turn_on:
           id: light_segment_1
@@ -171,6 +171,7 @@ number:
   - platform: template
     name: button_press_counter
     id: button_press_counter
+    internal: true
     restore_value: no
     min_value: 0
     max_value: 3
@@ -188,36 +189,33 @@ number:
               - number.in_range: 
                   id: button_press_counter
                   #2
-                  above: 1
-                  below: 3
+                  above: 1.1
+                  below: 2.9
             then:
-              - dfplayer.play: !lambda "return x/255;"
+              - dfplayer.play: 2
               # Turn on Cyberpunk Mode
-              - switch.turn_on: color_mode
+              - switch.turn_on: cyberpunk_mode
         - if:
             condition:
               - number.in_range: 
                   id: button_press_counter
                   # 3
-                  above: 2
+                  above: 2.1
             then:
-              - dfplayer.play: !lambda "return x/255;"
+              - dfplayer.play: 1
               # Turn off Lights
               - light.turn_off: bttf_light
-              # Set number value to 0 (can't set to 1, or lights will light up again)
-              - number.to_min: button_press_counter
         - if:
             condition:
               - number.in_range: 
                   id: button_press_counter
                   #1
-                  above: 0
-                  below: 2
+                  above: 0.1
+                  below: 1.9
             then:
               #This turns on the lights with default BTTF Colors
-              - dfplayer.play: !lambda "return x/255;"
-              - switch.turn_off: color_mode
-
+              - dfplayer.play: 3
+              - switch.turn_off: cyberpunk_mode
 
   - platform: template
     name: Brightness
@@ -292,7 +290,7 @@ time:
 
 switch:
   - platform: template
-    id: color_mode
+    id: cyberpunk_mode
     icon: "mdi:toggle-switch"
     internal: false
     restore_mode: ALWAYS_OFF

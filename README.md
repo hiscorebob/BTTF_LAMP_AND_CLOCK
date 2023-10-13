@@ -33,6 +33,7 @@ It also features a WebServer where you can control certain elements (Brightness 
 
 ![Home Assistant Intgration](img/home-assistant-integration.png)
 
+[![Demo Video with sound](https://img.youtube.com/vi/ihlrp4R2xF4/0.jpg)](https://www.youtube.com/watch?v=ihlrp4R2xF4)  
 
 Many thanks to jejelinge for providing the original code and STL files for 3D Printing!
 
